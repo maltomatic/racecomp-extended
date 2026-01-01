@@ -42,23 +42,23 @@ from toolkit.criteria import psnr, ssim_simple
 
 B = 32
 C = 3
-H_l = W_l = 112
+H_l = W_l = 56
 H_h = W_h = 224
 
 #################### configs #################### 
-TRAINING = True
+TRAINING = False
 debug = False
-resume = True
-training_comment = "UResNet formal train"
+resume = False
+training_comment = "Interpolation-net formal train"
 
-model_idx = 0
+model_idx = 1
 # idx:
     # 0 - VitNet
     # 1 - InterNet
     # 2 - UResNet
     # 3 - TrimResNet
 # train_list = ["All", "East Asian", "Indian", "Black", "White", "Middle Eastern", "Latino_Hispanic", "Southeast Asian"]
-train_list = ["Latino_Hispanic", "Southeast Asian"]
+train_list = ["All"]
 use_percep = True
 perc = 0.1
 use_ssim = False
@@ -69,7 +69,7 @@ epoch_stages = (2, 1, 0, 0) if sz == 112 else (2, 2, 0, 0)
 under_represented_ratio = 0.05
 tgt_race = "All"
 test_stage = 2
-test_epoch = 3
+test_epoch = 4
 
 config_str = f"size{sz}_mb{microbatches}_percep{int(use_percep)}_ssim{int(use_ssim)}"
 #################################################
@@ -506,7 +506,7 @@ if __name__ == "__main__":
     else:
         model = Modelnet.to(device)
         print("Load model from checkpoint for inference/testing")
-        ckpt_path = f"checkpoints_{model_type}/minority_{tgt_race.replace(" ", "_")}/best_stage{test_stage}_epoch{test_epoch}.pt"
+        ckpt_path = f"checkpoints/{model_type}/config_{config_str}/minority_{tgt_race.replace(" ", "_")}/best_stage{test_stage}_epoch{test_epoch}.pt"
         ckpt = torch.load(ckpt_path, map_location=device)
         model.load_state_dict(ckpt["model"], strict = False)
         model.eval()
@@ -514,18 +514,21 @@ if __name__ == "__main__":
         model.to(device)
 
         #load test sample image
-        testpath = "test_112.png"
-        img_file = f".//test_files//{testpath}"
-        image = decode_image(img_file, mode = "RGB")
-        transform = torchvision.transforms.Compose([
-            torchvision.transforms.Resize((112, 112)),
-            torchvision.transforms.ConvertImageDtype(torch.float),
-            torchvision.transforms.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD)
-        ])
-        input_img = transform(image).unsqueeze(0).to(device)  # add batch dimension
-        with torch.no_grad():
-            pred = model(input_img)
-            # save output image
-        output_img = denormalize_imagenet(pred.squeeze(0).cpu()).permute(1, 2, 0).numpy()
-        output_pil = Image.fromarray(output_img)
-        output_pil.save(f"test_files/outputs/{model_type}_output_{testpath}.png")
+        for i in range(1, 5):
+            testpath = f"test_56_{i}.png"
+            # testpath = f"test_{sz}.png"
+            img_file = f".//test_files//{testpath}"
+            image = decode_image(img_file, mode = "RGB")
+            transform = torchvision.transforms.Compose([
+                torchvision.transforms.Resize((112, 112)),
+                torchvision.transforms.ConvertImageDtype(torch.float),
+                torchvision.transforms.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD)
+            ])
+            input_img = transform(image).unsqueeze(0).to(device)  # add batch dimension
+            with torch.no_grad():
+                pred = model(input_img)
+                # save output image
+            output_img = denormalize_imagenet(pred.squeeze(0).cpu()).permute(1, 2, 0).numpy()
+            output_pil = Image.fromarray(output_img)
+            output_pil.save(f"test_files/outputs/{model_type}_output_{testpath}.png")
+            print(f"Saved output image to test_files/outputs/{model_type}_output_{testpath}.png")

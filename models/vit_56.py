@@ -117,30 +117,30 @@ class VitUpscaler(nn.Module):
         xp = self.prep(x)
 
         x1 = self.entry(x)
-        # print("After entry: ", x1.shape)
+        print("After entry: ", x1.shape)
         x2 = self.enc1(x1)
-        # print("After enc1: ", x2.shape)
+        print("After enc1: ", x2.shape)
         x3 = self.enc2(x2)
-        # print("After enc2: ", x3.shape)
+        print("After enc2: ", x3.shape)
         x4 = self.enc3(x3)
-        # print("After enc3: ", x4.shape)
+        print("After enc3: ", x4.shape)
 
         if self.large:
             x5 = self.enc4(x4)
-            # print("After enc4: ", x5.shape)
+            print("After enc4: ", x5.shape)
             x6 = self.out(x5)
         
-            # print("Final: ", x6.shape)
+            print("Final: ", x6.shape)
             y1 = self.decHead(x6)
             y1 = torch.cat([y1, x5], dim=1)
             y1 = self.decHeadConv(y1)
-            # print("After decHead: ", y1.shape)
+            print("After decHead: ", y1.shape)
 
             y2 = self.dec1(y1)
             y2 = self.center_crop(y2, x4.size())
             y2 = torch.cat([y2, x4], dim=1)
             y2 = self.d1conv(y2)
-            # print("After dec1: ", y2.shape)
+            print("After dec1: ", y2.shape)
         else:
             y2 = x4
 
@@ -148,28 +148,28 @@ class VitUpscaler(nn.Module):
         y3 = self.center_crop(y3, x3.size())
         y3 = torch.cat([y3, x3], dim=1)
         y3 = self.d2conv(y3)
-        # print("After dec2: ", y3.shape)
+        print("After dec2: ", y3.shape)
 
         y4 = self.dec3(y3)
         y4 = torch.cat([y4, x2], dim=1)
         y4 = self.d3conv(y4)
-        # print("After dec3: ", y4.shape)
+        print("After dec3: ", y4.shape)
 
         y5 = self.dec4(y4)
         y5 = torch.cat([y5, x1], dim=1)
         y5 = self.d4conv(y5)
-        # print("After dec4: ", y5.shape)
+        print("After dec4: ", y5.shape)
 
         y6 = self.dec5(y5)
         y6 = torch.cat([y6, xp], dim=1)
         y6 = self.dec5conv(y6)
-        # print("After dec5: ", y6.shape)
+        print("After dec5: ", y6.shape)
 
         y = self.decout(y6)
         if(not self.large):
             y = self.large_decout(y)
         y = self.out_conv(y)
-        # print("Output: ", y.shape)
+        print("Output: ", y.shape)
 
         return y
 
@@ -178,8 +178,8 @@ if __name__ == "__main__":
     print("Availability: ", device)
     if(torch.cuda.is_available()):
         print(f"GPU ID: {torch.cuda.current_device()}, {torch.cuda.get_device_name(torch.cuda.current_device())}")
-    model = VitUpscaler(input_shape = (3, 56, 56)).to(device)
+    model = VitUpscaler(input_shape = (3, 224, 224)).to(device)
     print(model)
-    x = torch.randn(1, 3, 56, 56)
+    x = torch.randn(1, 3, 224, 224)
     y = model(x.to(device))
     print("Input:", x.shape, "Output:", y.shape)
