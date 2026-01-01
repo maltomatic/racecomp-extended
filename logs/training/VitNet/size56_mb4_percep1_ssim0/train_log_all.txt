@@ -1,5 +1,3 @@
-
-
 === 2025-11-22 12:20:11 : UResNet formal train ===
 Training on GPU ID: 0, NVIDIA GeForce RTX 4070 Laptop GPU
 Configs - Model: VitNet, Image Size: 56,
