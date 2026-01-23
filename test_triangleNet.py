@@ -199,7 +199,6 @@ class TriangleNet(nn.Module):
         if(self.training):
             #### TODO: proccess according to stages
             if(stage != 4):
-                # print("Input shape:", x.shape) # 3, 56
                 x_prep = self.prep_layer(x)
                 # print("x_prepped shape:", x_prep.shape) # 16, 224 /// 56 --> concat d0 
                 x1 = self.entry(x)
