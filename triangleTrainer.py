@@ -29,7 +29,7 @@ from toolkit.criteria import psnr, ssim_simple
 
 from models.triangleNet import TriangleNet
 
-B = 32
+B = 20
 C = 3
 H_l = W_l = 56
 H_h = W_h = 224
@@ -47,12 +47,12 @@ perc = 0.1
 use_ssim = False
 microbatches = 4 # 1 for no microbatching, n for n-step microbatching, max 8 recommended to avoid gradient explosion
 sz = 56 # or 56
-epoch_stages = (5, 10, 5, 3)
+epoch_stages = (10, 10, 5, 3)
 # stage 1: fine-tune teacher, L1 loss
 # stage 2: train learner against teacher, L2 + slight VGG loss
 # stage 3: train decoder against teacher, VGG + slight L1 loss
 # stage 4: fine tune decoder against learner, VGG + slight L1 loss
-decoder_stages = (2, 2, 1, 0) # encoder unfreeze level when training decoder in s3
+decoder_stages = (2, 2, 1) # encoder unfreeze level when training decoder in s3
 
 under_represented_ratio = 0.05
 tgt_race = "All"
@@ -100,12 +100,15 @@ def stage_1_train(model, train_loader, val_loader = None, st1_lr = 3e-4, st2_lr 
 
     optimizer = torch.optim.AdamW(model.teacher_upscaler.parameters(), lr=st1_lr, weight_decay=1e-4)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=max(1, st1_epochs * math.ceil(len(train_loader) / microbatch_steps)))
+    print("======== Stage 1-1 ========")
     for epoch in range(st1_epochs):
         optimizer.zero_grad(set_to_none=True)
         n_batches = 0
         epoch_loss = 0.0
         batch_loss = 0.0
         for _, Y_img, _, _ in train_loader:
+            if(debug and n_batches >= 1):
+                break
             Y_img = Y_img.to(device).float()
             pred = model(Y_img, stage=1)
             loss = criterion(pred, Y_img)
@@ -123,10 +126,10 @@ def stage_1_train(model, train_loader, val_loader = None, st1_lr = 3e-4, st2_lr 
                 
                 scheduler.step()
             n_batches += 1
-            if(n_batches % 100 == 0):
-                print(f"    Batch {n_batches}, Training Loss: {batch_loss / 100:.4f Loss}")
+            if(n_batches % 20 == 0):
+                print(f"    Batch {n_batches}, Training Loss: {batch_loss / 100:.4f}")
                 batch_loss = 0.0
-        print(f"Stage 1-1 Epoch {epoch + 1}/{st1_epochs}, Training Loss: {epoch_loss / n_batches:.4f Loss}")
+        print(f"Stage 1-1 Epoch {epoch + 1}/{st1_epochs}, Training Loss: {epoch_loss / n_batches:.4f}")
     del optimizer
     del scheduler
     
@@ -134,12 +137,15 @@ def stage_1_train(model, train_loader, val_loader = None, st1_lr = 3e-4, st2_lr 
         param.requires_grad = True
     optimizer = torch.optim.AdamW(list(model.teacher.parameters()) + list(model.teacher_upscaler.parameters()), lr=st2_lr, weight_decay=1e-4)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=max(1, st2_epochs * math.ceil(len(train_loader) / microbatch_steps)))
+    print("======== Stage 1-2 ========")
     for epoch in range(st2_epochs):
         optimizer.zero_grad(set_to_none=True)
         n_batches = 0
         epoch_loss = 0.0
         batch_loss = 0.0
         for _, Y_img, _, _ in train_loader:
+            if(debug and n_batches >= 1):
+                break
             Y_img = Y_img.to(device).float()
             pred = model(Y_img, stage=1)
             loss = criterion(pred, Y_img)
@@ -157,14 +163,14 @@ def stage_1_train(model, train_loader, val_loader = None, st1_lr = 3e-4, st2_lr 
                 
                 scheduler.step()
             n_batches += 1
-            if(n_batches % 100 == 0):
-                print(f"    Batch {n_batches}, Training Loss: {batch_loss / 100:.4f Loss}")
+            if(n_batches % 20 == 0):
+                print(f"    Batch {n_batches}, Training Loss: {batch_loss / 100:.4f}")
                 batch_loss = 0.0
-        print(f"Stage 1-2 Epoch {epoch + 1}/{st2_epochs}, Training Loss: {epoch_loss / n_batches:.4f Loss}")
+        print(f"Stage 1-2 Epoch {epoch + 1}/{st2_epochs}, Training Loss: {epoch_loss / n_batches:.4f}")
     del optimizer
     del scheduler
     # validation
-    if val_loader is not None:
+    if val_loader is not None and debug == False:
         model.eval()
         with torch.no_grad():
             val_loss = 0.0
@@ -201,12 +207,15 @@ def stage_2_train(model, train_loader, val_loader = None, lr = 1e-4, total_epoch
     model.to(device)
     model.train()
 
+    print("======== Stage 2 ========")
     for epoch in range(total_epochs):
         optimizer.zero_grad(set_to_none=True)
         n_batches = 0
         epoch_loss = 0.0
         batch_loss = 0.0
         for _, Y_img, _, _ in train_loader:
+            if(debug and n_batches >= 1):
+                break
             Y_img = Y_img.to(device).float()
             pred_dict = model(Y_img, stage=2) #{"x_prep": x_prep, "x1": x1, "x2": x2, "lea224": lea224, "lea112": lea112, "lea56": lea56}
             # match pred_dict["lea224"] against pred_dict["x_prep"], ["lea112"] against ["x1"], ["lea56"] against ["x2"]
@@ -230,14 +239,14 @@ def stage_2_train(model, train_loader, val_loader = None, lr = 1e-4, total_epoch
 
                 scheduler.step()
             n_batches += 1
-            if(n_batches % 100 == 0):
-                print(f"    Batch {n_batches}, Training Loss: {batch_loss / 100:.4f Loss}")
+            if(n_batches % 20 == 0):
+                print(f"    Batch {n_batches}, Training Loss: {batch_loss / 100:.4f}")
                 batch_loss = 0.0
-        print(f"Stage 2 Epoch {epoch + 1}/{total_epochs}, Training Loss: {epoch_loss / n_batches:.4f Loss}")
+        print(f"Stage 2 Epoch {epoch + 1}/{total_epochs}, Training Loss: {epoch_loss / n_batches:.4f}")
     del optimizer
     del scheduler
     # validation
-    if val_loader is not None:
+    if val_loader is not None and debug == False:
         model.eval()
         with torch.no_grad():
             val_loss = 0.0
@@ -265,6 +274,7 @@ def stage_3_train(model, train_loader, val_loader = None, lr = 1e-4, total_epoch
     for param in model.parameters():
         param.requires_grad = True
         trainable_params.append(param)
+    # always frozen
     for param in model.teacher.parameters():
         param.requires_grad = False
         trainable_params.remove(param)
@@ -272,6 +282,16 @@ def stage_3_train(model, train_loader, val_loader = None, lr = 1e-4, total_epoch
         param.requires_grad = False
         trainable_params.remove(param)
     for param in model.learner.parameters():
+        param.requires_grad = False
+        trainable_params.remove(param)
+    # staged unfreeze later
+    for param in model.enc4.parameters():
+        param.requires_grad = False
+        trainable_params.remove(param)
+    for param in model.enc3.parameters():
+        param.requires_grad = False
+        trainable_params.remove(param)
+    for param in model.enc2.parameters():
         param.requires_grad = False
         trainable_params.remove(param)
     
@@ -287,16 +307,75 @@ def stage_3_train(model, train_loader, val_loader = None, lr = 1e-4, total_epoch
     else:
         perceptual_criterion = None
         lambda_perc = 0.0
-    optimizer = torch.optim.AdamW(trainable_params, lr=lr, weight_decay=1e-4)
     scaler = torch.amp.GradScaler(device_type, enabled=True)
-    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=max(1, total_epochs * math.ceil(len(train_loader) / microbatch_steps)))
     model.to(device)
     model.train()
 
-    for epoch in range(total_epochs):
-        for _, Y_img, _, _ in train_loader:
-            Y_img = Y_img.to(device).float()
-            # staged training; decoder always trainable, encoder unfreeze over stages
+    for stage_idx in range(len(epochs_per_stage)):
+        print(f"======== Stage 3-{stage_idx + 1} ========")
+        for layer_name in stages[stage_idx]:
+            layer = getattr(model, layer_name)
+            for param in layer.parameters():
+                param.requires_grad = True
+                trainable_params.append(param)
+        optimizer = torch.optim.AdamW(trainable_params, lr=lr, weight_decay=1e-4)
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=max(1, total_epochs * math.ceil(len(train_loader) / microbatch_steps)))
+        for epoch in range(epochs_per_stage[stage_idx]):
+            # unfreeze according to stage
+            optimizer.zero_grad(set_to_none=True)
+            n_batches = 0
+            epoch_loss = 0.0
+            batch_loss = 0.0
+            for _, Y_img, _, _ in train_loader:
+                if(debug and n_batches >= 1):
+                    break
+                Y_img = Y_img.to(device).float()
+                # staged training; decoder always trainable, enc2~enc4 progressively unfrozen
+                pred = model(Y_img, stage=3)
+                loss = criterion(pred, Y_img)
+                if use_percep:
+                    perceptual_criterion = PerceptualLossVGG19(layer_weights=perc_weights, layers=perc_layers).to(device)
+                    perceptual_criterion.eval()
+                    loss_perc = perceptual_criterion(pred, Y_img)
+                    loss += lambda_perc * loss_perc
+                loss /= microbatch_steps
+                epoch_loss += loss.item()
+                batch_loss += loss.item()
+                scaler.scale(loss).backward()
+                if((n_batches + 1) % microbatch_steps == 0 or (n_batches + 1) == len(train_loader)):
+                    scaler.unscale_(optimizer)
+                    nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+                    
+                    scaler.step(optimizer)
+                    scaler.update()
+                    optimizer.zero_grad(set_to_none=True)
+                    
+                    scheduler.step()
+                n_batches += 1
+                if(n_batches % 20 == 0):
+                    print(f"    Batch {n_batches}, Training Loss: {batch_loss / 100:.4f}")
+                    batch_loss = 0.0
+            print(f"Stage 3-{stage_idx + 1} Epoch {epoch + 1}/{total_epochs}, Training Loss: {epoch_loss / n_batches:.4f}")
+        del optimizer
+        del scheduler
+    # validation
+    if val_loader is not None and debug == False:
+        model.eval()
+        with torch.no_grad():
+            val_loss = 0.0
+            n_val = 0
+            for _, Y_img, _, _ in val_loader:
+                Y_img = Y_img.to(device).float()
+                pred = model(Y_img, stage=3)
+                loss = criterion(pred, Y_img)
+                if use_percep:
+                    perceptual_criterion = PerceptualLossVGG19(layer_weights=perc_weights, layers=perc_layers).to(device)
+                    perceptual_criterion.eval()
+                    loss_perc = perceptual_criterion(pred, Y_img)
+                    loss += lambda_perc * loss_perc
+                val_loss += loss.item()
+                n_val += 1
+            print(f"Stage 3 Validation Loss: {val_loss / n_val:.4f}")
 
 def stage_4_train(model, train_loader, val_loader = None, lr = 1e-5, total_epochs = 3, microbatch_steps = 4, use_percep = True, perc = 0.1):
     # fine tune decoder against learner, VGG + slight L1 loss
@@ -329,4 +408,74 @@ def stage_4_train(model, train_loader, val_loader = None, lr = 1e-5, total_epoch
     model.train()
 
     for epoch in range(total_epochs):
-        ... #TODO
+        optimizer.zero_grad(set_to_none=True)
+        n_batches = 0
+        epoch_loss = 0.0
+        batch_loss = 0.0
+        for _, Y_img, _, _ in train_loader:
+            if(debug and n_batches >= 1):
+                break
+            Y_img = Y_img.to(device).float()
+            pred = model(Y_img, stage=4)
+            loss = criterion(pred, Y_img)
+            if use_percep:
+                perceptual_criterion = PerceptualLossVGG19(layer_weights=perc_weights, layers=perc_layers).to(device)
+                perceptual_criterion.eval()
+                loss_perc = perceptual_criterion(pred, Y_img)
+                loss += lambda_perc * loss_perc
+            loss /= microbatch_steps
+            epoch_loss += loss.item()
+            batch_loss += loss.item()
+            scaler.scale(loss).backward()
+            if((n_batches + 1) % microbatch_steps == 0 or (n_batches + 1) == len(train_loader)):
+                scaler.unscale_(optimizer)
+                nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+                
+                scaler.step(optimizer)
+                scaler.update()
+                optimizer.zero_grad(set_to_none=True)
+                
+                scheduler.step()
+            n_batches += 1
+            if(n_batches % 20 == 0):
+                print(f"    Batch {n_batches}, Training Loss: {batch_loss / 100:.4f}")
+                batch_loss = 0.0
+        print(f"Stage 4 Epoch {epoch + 1}/{total_epochs}, Training Loss: {epoch_loss / n_batches:.4f}")
+    del optimizer
+    del scheduler
+    # validation
+    if val_loader is not None and debug == False:
+        model.eval()
+        with torch.no_grad():
+            val_loss = 0.0
+            n_val = 0
+            for _, Y_img, _, _ in val_loader:
+                Y_img = Y_img.to(device).float()
+                pred = model(Y_img, stage=4)
+                loss = criterion(pred, Y_img)
+                if use_percep:
+                    perceptual_criterion = PerceptualLossVGG19(layer_weights=perc_weights, layers=perc_layers).to(device)
+                    perceptual_criterion.eval()
+                    loss_perc = perceptual_criterion(pred, Y_img)
+                    loss += lambda_perc * loss_perc
+                val_loss += loss.item()
+                n_val += 1
+            print(f"Stage 4 Validation Loss: {val_loss / n_val:.4f}")
+
+if __name__ == "__main__":
+    # prepare data loaders
+    train_dataset = FairFaceDataset(train_image_path, train_label_path, lr_size = (sz, sz))
+    train_loader = DataLoader(train_dataset, batch_size=B, shuffle=True, num_workers=8, pin_memory=True)
+    val_dataset = FairFaceDataset(val_image_path, val_label_path, lr_size = (sz, sz))
+    val_loader = DataLoader(val_dataset, batch_size=B, shuffle=False, num_workers=8, pin_memory=True)
+    # check device
+    print(f"Using device: {device_type}")
+    # stage-wise training
+    print("Starting training")
+    if debug:
+        print("DEBUG RUN")
+    stage_1_train(model, train_loader, val_loader, st1_epochs=7, st2_epochs=3, microbatch_steps=microbatches)
+    stage_2_train(model, train_loader, val_loader, use_percep=use_percep, perc=perc, total_epochs=epoch_stages[1], microbatch_steps=microbatches)
+    stage_3_train(model, train_loader, val_loader, use_percep=use_percep, perc=perc, total_epochs=epoch_stages[2], microbatch_steps=microbatches, epochs_per_stage=decoder_stages)
+    stage_4_train(model, train_loader, val_loader, use_percep=use_percep, perc=perc, total_epochs=epoch_stages[3], microbatch_steps=microbatches)
+    print("Training complete.")
