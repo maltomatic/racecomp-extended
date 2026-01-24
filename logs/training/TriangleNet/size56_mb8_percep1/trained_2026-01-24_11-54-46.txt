@@ -1,0 +1,4 @@
+Training started at 2026-01-24 11:54:46
+Configuration: TriangleNet  size56_mb8_percep1
+======== Stage 1-1 ========
+----WARNING: [Batch 14] Returned infinite logits; skipping

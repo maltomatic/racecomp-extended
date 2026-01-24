@@ -196,7 +196,7 @@ class TriangleNet(nn.Module):
 
     def forward(self, x, stage = 5):  # stage 1-4 for training, implicit stage 5 is eval forward pass
         #encoder
-        if(self.training):
+        if(stage != 5):
             #### TODO: proccess according to stages
             if(stage != 4):
                 # print("Input shape:", x.shape) # 3, 56
