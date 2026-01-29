@@ -28,7 +28,7 @@ from toolkit.criteria import psnr, ssim_simple
 
 from models.triangleNet import TriangleNet
 
-B = 8
+B = 12
 C = 3
 H_l = W_l = 56
 H_h = W_h = 224
@@ -66,6 +66,7 @@ model_type = "TriangleNet"
 desc_path = f"{model_type}/{config_str}/"
 desc = f"trained_{datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}"
 log_path = f"logs/training/{desc_path}{desc}.txt"
+ckpt_path = f"checkpoints/{desc_path}"
 
 IMAGENET_MEAN = [0.485, 0.456, 0.406]
 IMAGENET_STD  = [0.229, 0.224, 0.225]
@@ -84,13 +85,13 @@ def savepoint(model, stage, epoch):
     ckpt = {
         "model": model.state_dict()
     }
-    if not os.path.exists(desc_path):
-        os.makedirs(desc_path, exist_ok=True)
-    path = os.path.join(desc_path, f"best_stage{stage}_epoch{epoch}_{datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}.pt")
+    if not os.path.exists(ckpt_path):
+        os.makedirs(ckpt_path, exist_ok=True)
+    path = os.path.join(ckpt_path, f"best_stage{stage}_epoch{epoch}_{datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}.pt")
     torch.save(ckpt, path)
-    print(f"Saved best checkpoint → {path}")
+    print(f"Saved best checkpoint at {path}")
     with open(log_path, "a") as file:
-        file.write(f"Saved best checkpoint → {path}\n")
+        file.write(f"Saved best checkpoint at {path}\n")
 
 def stage_1_train(model, train_loader, val_loader = None, st1_lr = 3e-4, st2_lr = 1e-5, st1_epochs = 4, st2_epochs = 2, microbatch_steps = 4):
     # clear memory
@@ -120,16 +121,13 @@ def stage_1_train(model, train_loader, val_loader = None, st1_lr = 3e-4, st2_lr 
         n_batches = 0
         epoch_loss = 0.0
         batch_loss = 0.0
-        for _, Y_img, _, _ in train_loader:
+        for X_img, Y_img, _, _ in train_loader:
             if(debug and n_batches >= 1):
                 break
-            # add noise for pretraining task
-            mean = 0
-            std = 0.1
-            noisy = torch.clamp((Y_img + torch.randn_like(Y_img) * std + mean), 0., 1.)
-
-            noisy = noisy.to(device).float()
-            pred = model(noisy, stage=1)
+            # bilinear upscale X_img to Y_img size
+            X_img = F.interpolate(X_img, size=(H_h, W_h), mode='bilinear', align_corners=False).to(device).float()
+            X_img = torch.clamp(X_img, 0.0, 1.0)
+            pred = model(X_img, stage=1)
             if not torch.isfinite(pred).all():
                 print(f"----WARNING: [Batch {n_batches}] Returned infinite logits; skipping")
                 with open(f"logs/training/{desc_path}{desc}.txt", "a") as file:
@@ -137,7 +135,8 @@ def stage_1_train(model, train_loader, val_loader = None, st1_lr = 3e-4, st2_lr 
                 optimizer.zero_grad(set_to_none=True)
                 n_batches -= (n_batches% microbatch_steps)  # reset microbatch count
                 # 3 strikes
-                torch.autograd.set_detect_anomaly(strikes > 2)
+                if(strikes >= 3):
+                    raise RuntimeError("Exceeded maximum number of infinite loss strikes; aborting training")
                 strikes += 1
                 continue
             Y_img = Y_img.to(device).float()
@@ -149,7 +148,8 @@ def stage_1_train(model, train_loader, val_loader = None, st1_lr = 3e-4, st2_lr 
                 optimizer.zero_grad(set_to_none=True)
                 n_batches -= (n_batches% microbatch_steps)  # reset microbatch count
                 # 3 strikes
-                torch.autograd.set_detect_anomaly(strikes > 2)
+                if(strikes >= 3):
+                    raise RuntimeError("Exceeded maximum number of infinite loss strikes; aborting training")
                 strikes += 1
                 continue
             loss /= microbatch_steps
@@ -189,15 +189,13 @@ def stage_1_train(model, train_loader, val_loader = None, st1_lr = 3e-4, st2_lr 
         n_batches = 0
         epoch_loss = 0.0
         batch_loss = 0.0
-        for _, Y_img, _, _ in train_loader:
+        for X_img, Y_img, _, _ in train_loader:
             if(debug and n_batches >= 1):
                 break
-            mean = 0
-            std = 0.1
-            noisy = torch.clamp((Y_img + torch.randn_like(Y_img) * std + mean), 0., 1.)
-
-            noisy = noisy.to(device).float()
-            pred = model(noisy, stage=1)
+            # bilinear upscale X_img to Y_img size
+            X_img = F.interpolate(X_img, size=(H_h, W_h), mode='bilinear', align_corners=False).to(device).float()
+            X_img = torch.clamp(X_img, 0.0, 1.0)
+            pred = model(X_img, stage=1)
             if not torch.isfinite(pred).all():
                 print(f"----WARNING: [Batch {n_batches}] Returned infinite logits; skipping")
                 with open(f"logs/training/{desc_path}{desc}.txt", "a") as file:
@@ -205,7 +203,8 @@ def stage_1_train(model, train_loader, val_loader = None, st1_lr = 3e-4, st2_lr 
                 optimizer.zero_grad(set_to_none=True)
                 n_batches -= (n_batches% microbatch_steps)  # reset microbatch count
                 # 3 strikes
-                torch.autograd.set_detect_anomaly(strikes > 2)
+                if(strikes >= 3):
+                    raise RuntimeError("Exceeded maximum number of infinite loss strikes; aborting training")
                 strikes += 1
                 continue
             Y_img = Y_img.to(device).float()
@@ -217,7 +216,8 @@ def stage_1_train(model, train_loader, val_loader = None, st1_lr = 3e-4, st2_lr 
                 optimizer.zero_grad(set_to_none=True)
                 n_batches -= (n_batches% microbatch_steps)  # reset microbatch count
                 # 3 strikes
-                torch.autograd.set_detect_anomaly(strikes > 2)
+                if(strikes >= 3):
+                    raise RuntimeError("Exceeded maximum number of infinite loss strikes; aborting training")
                 strikes += 1
                 continue
             loss /= microbatch_steps
@@ -250,13 +250,11 @@ def stage_1_train(model, train_loader, val_loader = None, st1_lr = 3e-4, st2_lr 
         with torch.no_grad():
             val_loss = 0.0
             n_val = 0
-            for _, Y_img, _, _ in val_loader:
-                mean = 0
-                std = 0.1
-                noisy = torch.clamp((Y_img + torch.randn_like(Y_img) * std + mean), 0., 1.)
-
-                noisy = noisy.to(device).float()
-                pred = model(noisy, stage=1)
+            for X_img, Y_img, _, _ in val_loader:
+            # bilinear upscale X_img to Y_img size
+                X_img = F.interpolate(X_img, size=(H_h, W_h), mode='bilinear', align_corners=False).to(device).float()
+                X_img = torch.clamp(X_img, 0.0, 1.0)
+                pred = model(X_img, stage=1)
                 Y_img = Y_img.to(device).float()
                 loss = criterion(pred, Y_img)
                 val_loss += loss.item()
@@ -265,6 +263,7 @@ def stage_1_train(model, train_loader, val_loader = None, st1_lr = 3e-4, st2_lr 
             with open(log_path, "a") as file:
                 file.write(f"Stage 1 Validation Loss: {val_loss / n_val:.4f}\n")
     savepoint(model, stage=1, epoch=st1_epochs + st2_epochs)
+    return model
 
 def stage_2_train(model, train_loader, val_loader = None, lr = 1e-4, total_epochs = 10, microbatch_steps = 4):
     torch.cuda.empty_cache()
@@ -306,7 +305,8 @@ def stage_2_train(model, train_loader, val_loader = None, lr = 1e-4, total_epoch
                 optimizer.zero_grad(set_to_none=True)
                 n_batches -= (n_batches% microbatch_steps)  # reset microbatch count
                 # 3 strikes
-                torch.autograd.set_detect_anomaly(strikes > 2)
+                if(strikes >= 3):
+                    raise RuntimeError("Exceeded maximum number of infinite loss strikes; aborting training")
                 strikes += 1
                 continue
             loss = criterion(pred_dict["lea224"], pred_dict["x_prep"]) + criterion(pred_dict["lea112"], pred_dict["x1"]) + criterion(pred_dict["lea56"], pred_dict["x2"])
@@ -317,7 +317,8 @@ def stage_2_train(model, train_loader, val_loader = None, lr = 1e-4, total_epoch
                 optimizer.zero_grad(set_to_none=True)
                 n_batches -= (n_batches% microbatch_steps)  # reset microbatch count
                 # 3 strikes
-                torch.autograd.set_detect_anomaly(strikes > 2)
+                if(strikes >= 3):
+                    raise RuntimeError("Exceeded maximum number of infinite loss strikes; aborting training")
                 strikes += 1
                 continue
             loss /= microbatch_steps
@@ -363,6 +364,7 @@ def stage_2_train(model, train_loader, val_loader = None, lr = 1e-4, total_epoch
                     savepoint(model, stage=2, epoch=epoch + 1)
     del optimizer
     del scheduler
+    return model
 
 def stage_3_train(model, train_loader, val_loader = None, lr = 1e-4, total_epochs = 5, microbatch_steps = 4, use_percep = True, crit_perc = 0.1,
                   epochs_per_stage = (2, 2, 1)):
@@ -425,7 +427,8 @@ def stage_3_train(model, train_loader, val_loader = None, lr = 1e-4, total_epoch
                     optimizer.zero_grad(set_to_none=True)
                     n_batches -= (n_batches% microbatch_steps)  # reset microbatch count
                     # 3 strikes
-                    torch.autograd.set_detect_anomaly(strikes > 2)
+                    if(strikes >= 3):
+                        raise RuntimeError("Exceeded maximum number of infinite loss strikes; aborting training")
                     strikes += 1
                     continue
                 loss = criterion(pred, Y_img)
@@ -436,7 +439,8 @@ def stage_3_train(model, train_loader, val_loader = None, lr = 1e-4, total_epoch
                     optimizer.zero_grad(set_to_none=True)
                     n_batches -= (n_batches% microbatch_steps)  # reset microbatch count
                     # 3 strikes
-                    torch.autograd.set_detect_anomaly(strikes > 2)
+                    if(strikes >= 3):
+                        raise RuntimeError("Exceeded maximum number of infinite loss strikes; aborting training")
                     strikes += 1
                     continue
                 if use_percep:
@@ -491,6 +495,7 @@ def stage_3_train(model, train_loader, val_loader = None, lr = 1e-4, total_epoch
                         savepoint(model, stage=3, epoch=sum(epochs_per_stage[:stage_idx]) + epoch + 1)
         del optimizer
         del scheduler
+    return model
 
 def stage_4_train(model, train_loader, val_loader = None, lr = 1e-5, total_epochs = 3, microbatch_steps = 4, use_percep = True, perc = 0.1):
     torch.cuda.empty_cache()
@@ -543,7 +548,8 @@ def stage_4_train(model, train_loader, val_loader = None, lr = 1e-5, total_epoch
                 optimizer.zero_grad(set_to_none=True)
                 n_batches -= (n_batches% microbatch_steps)  # reset microbatch count
                 # 3 strikes
-                torch.autograd.set_detect_anomaly(strikes > 2)
+                if(strikes >= 3):
+                    raise RuntimeError("Exceeded maximum number of infinite loss strikes; aborting training")
                 strikes += 1
                 continue
             loss = criterion(pred, Y_img)
@@ -554,7 +560,8 @@ def stage_4_train(model, train_loader, val_loader = None, lr = 1e-5, total_epoch
                 optimizer.zero_grad(set_to_none=True)
                 n_batches -= (n_batches% microbatch_steps)  # reset microbatch count
                 # 3 strikes
-                torch.autograd.set_detect_anomaly(strikes > 2)
+                if(strikes >= 3):
+                    raise RuntimeError("Exceeded maximum number of infinite loss strikes; aborting training")
                 strikes += 1
                 continue
             if use_percep:
@@ -609,6 +616,7 @@ def stage_4_train(model, train_loader, val_loader = None, lr = 1e-5, total_epoch
                     savepoint(model, stage=4, epoch=epoch + 1)
     del optimizer
     del scheduler
+    return model
 
 if __name__ == "__main__":
     if not os.path.exists(f"./logs/training/{desc_path}"):
@@ -627,8 +635,8 @@ if __name__ == "__main__":
         file.write(f"Configuration: {model_type}  {config_str}\n")
     if debug:
         print("DEBUG RUN")
-    stage_1_train(model, train_loader, val_loader, st1_epochs=3, st2_epochs=2, microbatch_steps=microbatches)
-    stage_2_train(model, train_loader, val_loader, total_epochs=epoch_stages[1], microbatch_steps=microbatches)
-    stage_3_train(model, train_loader, val_loader, use_percep=use_percep, crit_perc=perc, total_epochs=epoch_stages[2], microbatch_steps=microbatches, epochs_per_stage=decoder_stages)
-    stage_4_train(model, train_loader, val_loader, use_percep=use_percep, perc=perc, total_epochs=epoch_stages[3], microbatch_steps=microbatches)
+    model = stage_1_train(model, train_loader, val_loader, st1_epochs=3, st2_epochs=2, microbatch_steps=microbatches)
+    model = stage_2_train(model, train_loader, val_loader, total_epochs=epoch_stages[1], microbatch_steps=microbatches)
+    model = stage_3_train(model, train_loader, val_loader, use_percep=use_percep, crit_perc=perc, total_epochs=epoch_stages[2], microbatch_steps=microbatches, epochs_per_stage=decoder_stages)
+    model = stage_4_train(model, train_loader, val_loader, use_percep=use_percep, perc=perc, total_epochs=epoch_stages[3], microbatch_steps=microbatches)
     print("Training complete.")

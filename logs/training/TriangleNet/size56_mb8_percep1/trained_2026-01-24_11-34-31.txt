@@ -1,3 +1,0 @@
-Training started at 2026-01-24 11:34:31
-Configuration: TriangleNet  size56_mb8_percep1
-======== Stage 1-1 ========
