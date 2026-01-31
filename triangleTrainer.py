@@ -34,7 +34,7 @@ H_l = W_l = 56
 H_h = W_h = 224
 
 #################### configs #################### 
-TRAINING = True
+TRAINING = False
 debug = False
 resume = False
 training_comment = "Testing TriangleNet"
@@ -619,24 +619,53 @@ def stage_4_train(model, train_loader, val_loader = None, lr = 1e-5, total_epoch
     return model
 
 if __name__ == "__main__":
-    if not os.path.exists(f"./logs/training/{desc_path}"):
-        os.makedirs(f"./logs/training/{desc_path}", exist_ok=True)
-    # prepare data loaders
-    train_dataset = FairFaceDataset(train_image_path, train_label_path, lr_size = (sz, sz))
-    train_loader = DataLoader(train_dataset, batch_size=B, shuffle=True, num_workers=8, pin_memory=True)
-    val_dataset = FairFaceDataset(val_image_path, val_label_path, lr_size = (sz, sz))
-    val_loader = DataLoader(val_dataset, batch_size=B, shuffle=False, num_workers=8, pin_memory=True)
-    # check device
-    print(f"Using device: {device_type}")
-    # stage-wise training
-    print("Starting training")
-    with open(log_path, "a") as file:
-        file.write(f"Training started at {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}\n")
-        file.write(f"Configuration: {model_type}  {config_str}\n")
-    if debug:
-        print("DEBUG RUN")
-    model = stage_1_train(model, train_loader, val_loader, st1_epochs=3, st2_epochs=2, microbatch_steps=microbatches)
-    model = stage_2_train(model, train_loader, val_loader, total_epochs=epoch_stages[1], microbatch_steps=microbatches)
-    model = stage_3_train(model, train_loader, val_loader, use_percep=use_percep, crit_perc=perc, total_epochs=epoch_stages[2], microbatch_steps=microbatches, epochs_per_stage=decoder_stages)
-    model = stage_4_train(model, train_loader, val_loader, use_percep=use_percep, perc=perc, total_epochs=epoch_stages[3], microbatch_steps=microbatches)
-    print("Training complete.")
+    if TRAINING:
+        if not os.path.exists(f"./logs/training/{desc_path}"):
+            os.makedirs(f"./logs/training/{desc_path}", exist_ok=True)
+        # prepare data loaders
+        train_dataset = FairFaceDataset(train_image_path, train_label_path, lr_size = (sz, sz))
+        train_loader = DataLoader(train_dataset, batch_size=B, shuffle=True, num_workers=8, pin_memory=True)
+        val_dataset = FairFaceDataset(val_image_path, val_label_path, lr_size = (sz, sz))
+        val_loader = DataLoader(val_dataset, batch_size=B, shuffle=False, num_workers=8, pin_memory=True)
+        # check device
+        print(f"Using device: {device_type}")
+        # stage-wise training
+        print("Starting training")
+        with open(log_path, "a") as file:
+            file.write(f"Training started at {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}\n")
+            file.write(f"Configuration: {model_type}  {config_str}\n")
+        if debug:
+            print("DEBUG RUN")
+        model = stage_1_train(model, train_loader, val_loader, st1_epochs=3, st2_epochs=2, microbatch_steps=microbatches)
+        model = stage_2_train(model, train_loader, val_loader, total_epochs=epoch_stages[1], microbatch_steps=microbatches)
+        model = stage_3_train(model, train_loader, val_loader, use_percep=use_percep, crit_perc=perc, total_epochs=epoch_stages[2], microbatch_steps=microbatches, epochs_per_stage=decoder_stages)
+        model = stage_4_train(model, train_loader, val_loader, use_percep=use_percep, perc=perc, total_epochs=epoch_stages[3], microbatch_steps=microbatches)
+        print("Training complete.")
+    else:
+        # inference
+        test_ckpt = "checkpoints/TriangleNet/size56_mb8_percep1/best_stage4_epoch3_2026-01-30_21-58-04.pt"
+        ckpt = torch.load(test_ckpt, map_location=device)
+        model.load_state_dict(ckpt["model"])
+        model.eval()
+        model.to(device)
+        print(f"Loaded model from {test_ckpt}")
+        # test files
+        test_dir = "test_files"
+        output_dir = f"test_files/outputs"
+        for i in range(5):
+            img_path = f"{test_dir}/test_56_{i}.png" if i else f"{test_dir}/test_56.png"
+            out_path = f"{output_dir}/TriangleNet_output_test_56_{i}.png" if i else f"{output_dir}/Triangle_test_56.png"
+            img = decode_image(img_path, mode = "RGB")
+            transform = torchvision.transforms.Compose([
+                torchvision.transforms.Resize((56, 56)),
+                torchvision.transforms.ConvertImageDtype(torch.float),
+                torchvision.transforms.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD)
+            ])
+            img = transform(img).unsqueeze(0).to(device)
+            with torch.no_grad():
+                pred = model(img)
+                # save output image
+            output_img = denormalize_imagenet(pred.squeeze(0).cpu()).permute(1, 2, 0).numpy()
+            output_pil = Image.fromarray(output_img)
+            output_pil.save(out_path)
+            print(f"Saved output image to {out_path}")

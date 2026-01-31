@@ -40,18 +40,12 @@ Stage 3-3 Epoch 1/5, Training Loss: 0.4960
 Stage 3-3 Epoch 1/5, Validation Loss: 0.4885
 Saved best checkpoint at checkpoints/TriangleNet/size56_mb8_percep1/best_stage3_epoch5_2026-01-28_20-33-31.pt
 ======== Stage 4 ========
-    Batch 36500, Training Loss: 0.5237
-    Batch 37000, Training Loss: 0.5252
-    Batch 37500, Training Loss: 0.5293
-    Batch 38000, Training Loss: 0.5248
-    Batch 38500, Training Loss: 0.5241
-    Batch 39000, Training Loss: 0.5220
-    Batch 39500, Training Loss: 0.5230
-    Batch 40000, Training Loss: 0.5176
-    Batch 40500, Training Loss: 0.5195
-    Batch 41000, Training Loss: 0.5249
-    Batch 41500, Training Loss: 0.5220
-    Batch 42000, Training Loss: 0.5192
-    Batch 42500, Training Loss: 0.5239
-    Batch 43000, Training Loss: 0.5235
 Stage 4 Epoch 1/3, Training Loss: 0.5683
+Stage 4 Validation Loss: 0.5241
+Saved best checkpoint at checkpoints/TriangleNet/size56_mb8_percep1/best_stage4_epoch1_2026-01-29_12-34-46.pt
+Stage 4 Epoch 2/3, Training Loss: 0.4968
+Stage 4 Validation Loss: 0.4900
+Saved best checkpoint at checkpoints/TriangleNet/size56_mb8_percep1/best_stage4_epoch2_2026-01-30_03-40-37.pt
+Stage 4 Epoch 3/3, Training Loss: 0.4870
+Stage 4 Validation Loss: 0.4868
+Saved best checkpoint at checkpoints/TriangleNet/size56_mb8_percep1/best_stage4_epoch3_2026-01-30_21-58-04.pt
