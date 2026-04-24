@@ -30,3 +30,52 @@ RaceComp
 ```
 
 Additionally, if/when restoring from a checkpoint while training for a minority, please verify that the training classes for the checkpoint are the same as before. With the seed set in ```load_rfw.py``` this should be a given, but it is better to be certain.
+
+# Citations
+
+### **RFW: Racial Faces in the Wild**, **FairFace**, **FastViT**
+
+```bibtex
+@inproceedings{wang2019racial,
+  title={Racial Faces in the Wild: Reducing Racial Bias by Information Maximization Adaptation Network},
+  author={Wang, Mei and Deng, Weihong},
+  booktitle={ICCV},
+  year={2019}
+}
+
+@inproceedings{wang2019caucasian,
+  title={Caucasian Face Recognition Dataset and Benchmark},
+  author={Wang, Mei and Deng, Weihong},
+  booktitle={arXiv preprint arXiv:1812.00194},
+  year={2019}
+}
+
+@inproceedings{wang2019indian,
+  title={Indian Face Recognition Dataset and Benchmark},
+  author={Wang, Mei and Deng, Weihong},
+  booktitle={arXiv preprint arXiv:1812.00193},
+  year={2019}
+}
+
+@inproceedings{wang2019asian,
+  title={Asian Face Recognition Dataset and Benchmark},
+  author={Wang, Mei and Deng, Weihong},
+  booktitle={arXiv preprint arXiv:1812.00195},
+  year={2019}
+}
+
+@misc{karkkainen2021fairface,
+  title={FairFace: Face Attribute Dataset for Balanced Race, Gender, and Age},
+  author={Kimmo Kärkkäinen and Jungseock Joo},
+  year={2021},
+  eprint={1908.04913},
+  archivePrefix={arXiv},
+  primaryClass={cs.CV}
+}
+
+@inproceedings{vasu2023fastvit,
+  title={FastViT: A Fast Hybrid Vision Transformer using Structural Reparameterization},
+  author={Vasu, Pranav and Gabriel, John and Zhu, Jun and Jampani, Varun and Tuzel, Oncel and Ranjan, Anurag},
+  booktitle={ICCV},
+  year={2023}
+}
